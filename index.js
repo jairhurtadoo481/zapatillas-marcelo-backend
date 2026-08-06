@@ -7,6 +7,7 @@ const conectarDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const productoRoutes = require("./routes/productoRoutes");
 const reservaRoutes = require("./routes/reservaRoutes");
+const ventaRoutes = require("./routes/ventaRoutes");
 
 conectarDB();
 
@@ -22,6 +23,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/productos", productoRoutes);
 app.use("/api/reservas", reservaRoutes);
+app.use("/api/ventas", ventaRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

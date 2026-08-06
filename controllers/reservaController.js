@@ -50,6 +50,7 @@ const crearReserva = async (req, res) => {
       itemsProcesados.push({
         producto: producto._id,
         nombre: producto.nombre,
+        codigo: producto.codigo || "",
         imagen: producto.imagenes && producto.imagenes.length > 0 ? producto.imagenes[0] : null,
         talla: item.talla,
         cantidad: item.cantidad,

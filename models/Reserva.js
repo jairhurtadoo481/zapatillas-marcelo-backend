@@ -3,6 +3,7 @@
 const itemReservaSchema = new mongoose.Schema({
   producto: { type: mongoose.Schema.Types.ObjectId, ref: "Producto", required: true },
   nombre: { type: String, required: true },
+  codigo: { type: String, default: "" },
   imagen: { type: String, default: null },
   talla: { type: String, required: true },
   cantidad: { type: Number, required: true, default: 1 },
