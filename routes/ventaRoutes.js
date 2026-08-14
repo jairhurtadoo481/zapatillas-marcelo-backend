@@ -5,9 +5,11 @@ const {
   registrarVenta,
   obtenerVentas,
   buscarProductoPorCodigo,
+  actividadReciente,
 } = require("../controllers/ventaController");
 
 router.get("/", protegerRuta, obtenerVentas);
+router.get("/actividad", protegerRuta, actividadReciente);
 router.get("/buscar/:codigo", protegerRuta, buscarProductoPorCodigo);
 router.post("/", protegerRuta, registrarVenta);
 

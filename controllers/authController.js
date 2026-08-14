@@ -1,8 +1,8 @@
 ﻿const jwt = require("jsonwebtoken");
 const Usuario = require("../models/Usuario");
 
-const generarToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+const generarToken = (id, rol) => {
+  return jwt.sign({ id, rol }, process.env.JWT_SECRET, { expiresIn: "7d" });
 };
 
 const login = async (req, res) => {
@@ -19,10 +19,14 @@ const login = async (req, res) => {
       return res.status(401).json({ mensaje: "Credenciales invalidas" });
     }
 
-    const token = generarToken(usuario._id);
+    if (usuario.rol === "trabajador" && usuario.activo === false) {
+      return res.status(403).json({ mensaje: "Tu cuenta esta suspendida temporalmente. Contacta al administrador." });
+    }
+
+    const token = generarToken(usuario._id, usuario.rol);
     res.json({
       token,
-      usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email },
+      usuario: { id: usuario._id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol },
     });
   } catch (error) {
     res.status(500).json({ mensaje: "Error del servidor", error: error.message });

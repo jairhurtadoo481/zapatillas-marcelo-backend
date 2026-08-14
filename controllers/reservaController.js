@@ -1,5 +1,11 @@
 ﻿const Reserva = require("../models/Reserva");
 const Producto = require("../models/Producto");
+const subirImagen = require("../config/cloudinaryUpload");
+
+const nombreSucursal = {
+  sucursal1: "Sucursal 1",
+  sucursal2: "Sucursal 2",
+};
 
 const obtenerSiguienteNumero = async () => {
   const ultima = await Reserva.findOne({ numero: { $exists: true, $type: "number" } }).sort({ numero: -1 });
@@ -8,7 +14,7 @@ const obtenerSiguienteNumero = async () => {
 
 const crearReserva = async (req, res) => {
   try {
-    const { items, cliente } = req.body;
+    const { items, cliente, metodoPago } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ mensaje: "La reserva debe tener al menos un producto" });
@@ -20,6 +26,10 @@ const crearReserva = async (req, res) => {
 
     if (cliente.entregaDomicilio && !cliente.direccion) {
       return res.status(400).json({ mensaje: "Falta la direccion para la entrega a domicilio" });
+    }
+
+    if (!metodoPago || !["yape", "plin"].includes(metodoPago)) {
+      return res.status(400).json({ mensaje: "Debes indicar un metodo de pago valido (yape o plin)" });
     }
 
     let total = 0;
@@ -52,6 +62,7 @@ const crearReserva = async (req, res) => {
         nombre: producto.nombre,
         codigo: producto.codigo || "",
         imagen: producto.imagenes && producto.imagenes.length > 0 ? producto.imagenes[0] : null,
+        sucursal: producto.sucursal || "sucursal1",
         talla: item.talla,
         cantidad: item.cantidad,
         precioUnitario,
@@ -65,6 +76,7 @@ const crearReserva = async (req, res) => {
       numero,
       items: itemsProcesados,
       cliente,
+      metodoPago,
       total,
       requierePagoCompleto,
     });
@@ -76,14 +88,35 @@ const crearReserva = async (req, res) => {
   }
 };
 
+const subirComprobante = async (req, res) => {
+  try {
+    const reserva = await Reserva.findById(req.params.id);
+    if (!reserva) {
+      return res.status(404).json({ mensaje: "Reserva no encontrada" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ mensaje: "No se envio ninguna imagen de comprobante" });
+    }
+
+    const resultado = await subirImagen(req.file.buffer, "zapatillas-marcelo/comprobantes");
+    reserva.comprobante = resultado.secure_url;
+    await reserva.save();
+
+    res.json(reserva);
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al subir comprobante", error: error.message });
+  }
+};
+
 const obtenerReservas = async (req, res) => {
   try {
     const filtro = {};
 
     if (req.query.historial === "true") {
-      filtro.estado = "compra_exitosa";
+      filtro.estado = "entregado";
     } else {
-      filtro.estado = { $ne: "compra_exitosa" };
+      filtro.estado = { $ne: "entregado" };
     }
 
     const reservas = await Reserva.find(filtro).sort({ createdAt: -1 });
@@ -96,7 +129,7 @@ const obtenerReservas = async (req, res) => {
 const actualizarEstadoReserva = async (req, res) => {
   try {
     const { estado } = req.body;
-    const estadosValidos = ["pendiente", "atendido", "suspendido", "compra_exitosa"];
+    const estadosValidos = ["pendiente", "atendido", "listo_recoger", "entregado", "suspendido"];
 
     if (!estadosValidos.includes(estado)) {
       return res.status(400).json({ mensaje: "Estado invalido" });
@@ -118,8 +151,51 @@ const actualizarEstadoReserva = async (req, res) => {
   }
 };
 
+const mensajeEstado = {
+  pendiente: "Tu pago esta siendo verificado.",
+  atendido: "Estamos coordinando tu compra, en breve te llamaremos.",
+  listo_recoger: "Tu pago fue confirmado. Ya puedes pasar a recoger tu pedido.",
+  entregado: "Este pedido ya fue entregado. Gracias por tu compra!",
+  suspendido: "Hubo un problema con este pedido, contactanos por WhatsApp.",
+};
+
+const seguimientoReserva = async (req, res) => {
+  try {
+    const { numero, celular } = req.query;
+
+    if (!numero || !celular) {
+      return res.status(400).json({ mensaje: "Debes indicar numero de pedido y celular" });
+    }
+
+    const reserva = await Reserva.findOne({
+      numero: Number(numero),
+      "cliente.celular": celular.trim(),
+    });
+
+    if (!reserva) {
+      return res.status(404).json({ mensaje: "No se encontro ningun pedido con esos datos" });
+    }
+
+    const sucursales = [...new Set(reserva.items.map((i) => nombreSucursal[i.sucursal] || "Sucursal 1"))];
+
+    res.json({
+      numero: reserva.numero,
+      estado: reserva.estado,
+      mensaje: mensajeEstado[reserva.estado] || "",
+      sucursales,
+      total: reserva.total,
+      items: reserva.items,
+      createdAt: reserva.createdAt,
+    });
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al buscar el pedido", error: error.message });
+  }
+};
+
 module.exports = {
   crearReserva,
+  subirComprobante,
   obtenerReservas,
   actualizarEstadoReserva,
+  seguimientoReserva,
 };

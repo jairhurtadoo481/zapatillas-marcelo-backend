@@ -11,6 +11,9 @@ const ventaSchema = new mongoose.Schema({
   cantidad: { type: Number, required: true, default: 1 },
   precioUnitario: { type: Number, required: true },
   descuento: { type: Number, default: 0 },
+  vendedorId: { type: mongoose.Schema.Types.ObjectId, ref: "Usuario", default: null },
+  vendedorNombre: { type: String, default: "" },
+  turnoId: { type: mongoose.Schema.Types.ObjectId, ref: "Turno", default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Venta", ventaSchema);

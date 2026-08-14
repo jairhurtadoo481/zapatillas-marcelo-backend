@@ -1,5 +1,7 @@
 ﻿const Venta = require("../models/Venta");
 const Producto = require("../models/Producto");
+const Usuario = require("../models/Usuario");
+const Turno = require("../models/Turno");
 
 const registrarVenta = async (req, res) => {
   try {
@@ -49,6 +51,17 @@ const registrarVenta = async (req, res) => {
     itemTalla.stock -= cantidad;
     await producto.save();
 
+    let vendedorNombre = "";
+    let turnoId = null;
+
+    if (req.usuarioId) {
+      const vendedor = await Usuario.findById(req.usuarioId);
+      if (vendedor) vendedorNombre = vendedor.nombre;
+
+      const turnoAbierto = await Turno.findOne({ trabajador: req.usuarioId, abierto: true });
+      if (turnoAbierto) turnoId = turnoAbierto._id;
+    }
+
     const venta = new Venta({
       producto: producto._id,
       codigo: producto.codigo,
@@ -60,6 +73,9 @@ const registrarVenta = async (req, res) => {
       cantidad,
       precioUnitario,
       descuento: descuentoAplicado,
+      vendedorId: req.usuarioId || null,
+      vendedorNombre,
+      turnoId,
     });
 
     await venta.save();
@@ -72,7 +88,11 @@ const registrarVenta = async (req, res) => {
 
 const obtenerVentas = async (req, res) => {
   try {
-    const ventas = await Venta.find().sort({ createdAt: -1 });
+    const filtro = {};
+    if (req.usuarioRol === "trabajador") {
+      filtro.vendedorId = req.usuarioId;
+    }
+    const ventas = await Venta.find(filtro).sort({ createdAt: -1 });
     res.json(ventas);
   } catch (error) {
     res.status(500).json({ mensaje: "Error al obtener ventas", error: error.message });
@@ -91,8 +111,25 @@ const buscarProductoPorCodigo = async (req, res) => {
   }
 };
 
+const actividadReciente = async (req, res) => {
+  try {
+    const inicioHoy = new Date();
+    inicioHoy.setHours(0, 0, 0, 0);
+
+    const ventasHoy = await Venta.find({ createdAt: { $gte: inicioHoy } }).sort({ createdAt: -1 });
+
+    res.json({
+      ultimaVentaId: ventasHoy.length > 0 ? ventasHoy[0]._id : null,
+      totalHoy: ventasHoy.length,
+    });
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al obtener actividad", error: error.message });
+  }
+};
+
 module.exports = {
   registrarVenta,
   obtenerVentas,
   buscarProductoPorCodigo,
+  actividadReciente,
 };

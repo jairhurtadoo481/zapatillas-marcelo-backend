@@ -8,6 +8,7 @@ const protegerRuta = (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.usuarioId = decoded.id;
+      req.usuarioRol = decoded.rol;
       next();
     } catch (error) {
       return res.status(401).json({ mensaje: "Token invalido o expirado" });
@@ -17,4 +18,12 @@ const protegerRuta = (req, res, next) => {
   }
 };
 
+const soloAdmin = (req, res, next) => {
+  if (req.usuarioRol !== "admin") {
+    return res.status(403).json({ mensaje: "Solo el administrador puede hacer esto" });
+  }
+  next();
+};
+
 module.exports = protegerRuta;
+module.exports.soloAdmin = soloAdmin;
