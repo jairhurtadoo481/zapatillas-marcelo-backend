@@ -192,10 +192,23 @@ const seguimientoReserva = async (req, res) => {
   }
 };
 
+const eliminarReserva = async (req, res) => {
+  try {
+    const reserva = await Reserva.findByIdAndDelete(req.params.id);
+    if (!reserva) {
+      return res.status(404).json({ mensaje: "Reserva no encontrada" });
+    }
+    res.json({ mensaje: "Compra eliminada correctamente" });
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al eliminar la compra", error: error.message });
+  }
+};
+
 module.exports = {
   crearReserva,
   subirComprobante,
   obtenerReservas,
   actualizarEstadoReserva,
   seguimientoReserva,
+  eliminarReserva,
 };

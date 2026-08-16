@@ -127,9 +127,34 @@ const actividadReciente = async (req, res) => {
   }
 };
 
+const eliminarVenta = async (req, res) => {
+  try {
+    const venta = await Venta.findById(req.params.id);
+    if (!venta) {
+      return res.status(404).json({ mensaje: "Venta no encontrada" });
+    }
+
+    const producto = await Producto.findById(venta.producto);
+    if (producto) {
+      const itemTalla = producto.tallas.find((t) => t.talla === venta.talla);
+      if (itemTalla) {
+        itemTalla.stock += venta.cantidad;
+        await producto.save();
+      }
+    }
+
+    await Venta.findByIdAndDelete(req.params.id);
+
+    res.json({ mensaje: "Venta eliminada y stock restaurado correctamente" });
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al eliminar venta", error: error.message });
+  }
+};
+
 module.exports = {
   registrarVenta,
   obtenerVentas,
   buscarProductoPorCodigo,
   actividadReciente,
+  eliminarVenta,
 };
