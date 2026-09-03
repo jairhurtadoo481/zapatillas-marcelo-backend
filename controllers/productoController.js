@@ -1,4 +1,4 @@
-﻿const Producto = require("../models/Producto");
+const Producto = require("../models/Producto");
 const subirImagen = require("../config/cloudinaryUpload");
 const cloudinary = require("../config/cloudinary");
 
@@ -37,7 +37,8 @@ const obtenerProductos = async (req, res) => {
     filtro.activo = true;
 
     if (req.query.q) {
-      const regex = new RegExp(req.query.q, "i");
+      const textoEscapado = req.query.q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(textoEscapado, "i");
       filtro.$or = [{ nombre: regex }, { marca: regex }];
     }
 

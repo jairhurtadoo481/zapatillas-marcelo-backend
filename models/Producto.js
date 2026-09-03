@@ -1,10 +1,8 @@
-﻿const mongoose = require("mongoose");
-
+const mongoose = require("mongoose");
 const tallaSchema = new mongoose.Schema({
   talla: { type: String, required: true },
   stock: { type: Number, required: true, default: 0 },
 }, { _id: false });
-
 const productoSchema = new mongoose.Schema({
   codigo: { type: String, default: "", trim: true },
   sucursal: {
@@ -15,6 +13,11 @@ const productoSchema = new mongoose.Schema({
   nombre: { type: String, required: true, trim: true },
   modeloBase: { type: String, default: "", trim: true },
   marca: { type: String, required: true, trim: true },
+  calidad: {
+    type: String,
+    enum: ["Original", "Replica"],
+    default: "Original",
+  },
   descripcion: { type: String, default: "" },
   precio: { type: Number, required: true },
   precioOferta: { type: Number, default: null },
@@ -36,5 +39,4 @@ const productoSchema = new mongoose.Schema({
   destacado: { type: Boolean, default: false },
   activo: { type: Boolean, default: true },
 }, { timestamps: true });
-
 module.exports = mongoose.model("Producto", productoSchema);
