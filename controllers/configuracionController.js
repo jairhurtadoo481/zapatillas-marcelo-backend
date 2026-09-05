@@ -1,6 +1,5 @@
-﻿const Configuracion = require("../models/Configuracion");
+const Configuracion = require("../models/Configuracion");
 const subirImagen = require("../config/cloudinaryUpload");
-
 const obtenerConfig = async () => {
   let config = await Configuracion.findOne();
   if (!config) {
@@ -9,7 +8,6 @@ const obtenerConfig = async () => {
   }
   return config;
 };
-
 const obtenerConfiguracion = async (req, res) => {
   try {
     const config = await obtenerConfig();
@@ -18,7 +16,6 @@ const obtenerConfiguracion = async (req, res) => {
     res.status(500).json({ mensaje: "Error al obtener configuracion", error: error.message });
   }
 };
-
 const subirQrYape = async (req, res) => {
   try {
     if (!req.file) {
@@ -33,7 +30,6 @@ const subirQrYape = async (req, res) => {
     res.status(500).json({ mensaje: "Error al subir QR de Yape", error: error.message });
   }
 };
-
 const subirQrPlin = async (req, res) => {
   try {
     if (!req.file) {
@@ -48,9 +44,23 @@ const subirQrPlin = async (req, res) => {
     res.status(500).json({ mensaje: "Error al subir QR de Plin", error: error.message });
   }
 };
-
+const subirQrBcp = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ mensaje: "No se envio ninguna imagen" });
+    }
+    const resultado = await subirImagen(req.file.buffer, "zapatillas-marcelo/config");
+    const config = await obtenerConfig();
+    config.qrBcp = resultado.secure_url;
+    await config.save();
+    res.json(config);
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al subir QR de BCP", error: error.message });
+  }
+};
 module.exports = {
   obtenerConfiguracion,
   subirQrYape,
   subirQrPlin,
+  subirQrBcp,
 };
