@@ -20,6 +20,8 @@ const productoSchema = new mongoose.Schema({
   },
   descripcion: { type: String, default: "" },
   precio: { type: Number, required: true },
+  precioPresencial: { type: Number, default: null },
+  precioMayorista: { type: Number, default: null },
   precioOferta: { type: Number, default: null },
   ofertaInicio: { type: Date, default: null },
   ofertaFin: { type: Date, default: null },
