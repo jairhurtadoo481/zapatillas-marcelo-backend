@@ -5,6 +5,7 @@ const tallaSchema = new mongoose.Schema({
 }, { _id: false });
 const productoSchema = new mongoose.Schema({
   codigo: { type: String, default: "", trim: true },
+  codigoModelo: { type: String, default: "", trim: true, index: true },
   sucursal: {
     type: String,
     enum: ["sucursal1", "sucursal2"],

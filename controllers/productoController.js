@@ -17,6 +17,44 @@ const calcularOfertaActiva = (producto) => {
   return { ...obj, ofertaActiva: ofertaVigente };
 };
 
+const buscarPorCodigoModelo = async (req, res) => {
+  try {
+    const producto = await Producto.findOne({ codigoModelo: req.params.codigoModelo });
+    if (!producto) {
+      return res.status(404).json({ mensaje: "No existe un producto con ese codigo de modelo" });
+    }
+    res.json(calcularOfertaActiva(producto));
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al buscar por codigo de modelo", error: error.message });
+  }
+};
+
+const sumarStockTalla = async (req, res) => {
+  try {
+    const producto = await Producto.findById(req.params.id);
+    if (!producto) {
+      return res.status(404).json({ mensaje: "Producto no encontrado" });
+    }
+
+    const { talla, cantidad } = req.body;
+    if (!talla || !cantidad || cantidad <= 0) {
+      return res.status(400).json({ mensaje: "Debes indicar talla y cantidad (mayor a 0)" });
+    }
+
+    const itemTalla = producto.tallas.find((t) => t.talla === talla);
+    if (itemTalla) {
+      itemTalla.stock += Number(cantidad);
+    } else {
+      producto.tallas.push({ talla, stock: Number(cantidad) });
+    }
+
+    await producto.save();
+    res.json(calcularOfertaActiva(producto));
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al sumar stock", error: error.message });
+  }
+};
+
 const crearProducto = async (req, res) => {
   try {
     const producto = new Producto(req.body);
@@ -232,6 +270,8 @@ const venderTalla = async (req, res) => {
 };
 
 module.exports = {
+  buscarPorCodigoModelo,
+  sumarStockTalla,
   crearProducto,
   obtenerProductos,
   obtenerProductoPorId,

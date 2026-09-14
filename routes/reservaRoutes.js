@@ -1,10 +1,11 @@
-﻿const express = require("express");
+const express = require("express");
 const router = express.Router();
 const protegerRuta = require("../middleware/authMiddleware");
-const { soloAdmin } = require("../middleware/authMiddleware");
+const { soloAdmin, soloMayorista } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 const {
   crearReserva,
+  crearReservaMayorista,
   subirComprobante,
   obtenerReservas,
   actualizarEstadoReserva,
@@ -13,6 +14,7 @@ const {
 } = require("../controllers/reservaController");
 
 router.post("/", crearReserva);
+router.post("/mayorista", protegerRuta, soloMayorista, crearReservaMayorista);
 router.post("/:id/comprobante", upload.single("imagen"), subirComprobante);
 router.get("/seguimiento", seguimientoReserva);
 router.get("/", protegerRuta, obtenerReservas);

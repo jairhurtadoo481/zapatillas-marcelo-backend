@@ -1,13 +1,14 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
 const usuarioSchema = new mongoose.Schema({
   nombre: { type: String, required: true, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  celular: { type: String, default: "" },
   password: { type: String, required: true },
   rol: {
     type: String,
-    enum: ["admin", "trabajador"],
+    enum: ["admin", "trabajador", "mayorista"],
     default: "admin",
   },
   activo: { type: Boolean, default: true },

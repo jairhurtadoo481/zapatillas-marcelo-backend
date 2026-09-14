@@ -1,4 +1,4 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
 const itemReservaSchema = new mongoose.Schema({
   producto: { type: mongoose.Schema.Types.ObjectId, ref: "Producto", required: true },
@@ -13,6 +13,11 @@ const itemReservaSchema = new mongoose.Schema({
 }, { _id: false });
 
 const reservaSchema = new mongoose.Schema({
+  tipo: {
+    type: String,
+    enum: ["web", "mayorista"],
+    default: "web",
+  },
   numero: { type: Number, required: true, unique: true },
   items: [itemReservaSchema],
   cliente: {
@@ -39,6 +44,7 @@ const reservaSchema = new mongoose.Schema({
   },
   requierePagoCompleto: { type: Boolean, default: false },
   total: { type: Number, required: true },
+  notasMayorista: { type: String, default: "" },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Reserva", reservaSchema);
