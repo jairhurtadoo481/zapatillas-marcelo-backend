@@ -11,6 +11,7 @@ const ventaRoutes = require("./routes/ventaRoutes");
 const configuracionRoutes = require("./routes/configuracionRoutes");
 const usuarioRoutes = require("./routes/usuarioRoutes");
 const turnoRoutes = require("./routes/turnoRoutes");
+const facturacionRoutes = require("./routes/facturacionRoutes");
 
 conectarDB();
 
@@ -30,6 +31,7 @@ app.use("/api/ventas", ventaRoutes);
 app.use("/api/configuracion", configuracionRoutes);
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/turnos", turnoRoutes);
+app.use("/api/facturacion", facturacionRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
