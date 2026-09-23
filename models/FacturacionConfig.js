@@ -13,10 +13,14 @@ const facturacionConfigSchema = new mongoose.Schema({
   series: {
     factura: { type: String, default: "F001" },
     boleta: { type: String, default: "B001" },
+    notaCreditoFactura: { type: String, default: "FC01" },
+    notaCreditoBoleta: { type: String, default: "BC01" },
   },
   correlativos: {
     factura: { type: Number, default: 0 },
     boleta: { type: Number, default: 0 },
+    notaCreditoFactura: { type: Number, default: 0 },
+    notaCreditoBoleta: { type: Number, default: 0 },
   },
 }, { timestamps: true });
 

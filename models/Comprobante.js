@@ -8,7 +8,7 @@ const itemSchema = new mongoose.Schema({
 }, { _id: false });
 
 const comprobanteSchema = new mongoose.Schema({
-  tipo: { type: String, enum: ["factura", "boleta"], required: true },
+  tipo: { type: String, enum: ["factura", "boleta", "nota_credito"], required: true },
   serie: { type: String, required: true },
   correlativo: { type: Number, required: true },
   cliente: {
@@ -33,6 +33,14 @@ const comprobanteSchema = new mongoose.Schema({
   xmlUrl: { type: String, default: null },
   cdrUrl: { type: String, default: null },
   pdfUrl: { type: String, default: null },
+  comprobanteAfectado: {
+    tipo: { type: String, enum: ["factura", "boleta"], default: null },
+    serie: { type: String, default: null },
+    correlativo: { type: Number, default: null },
+  },
+  motivoCodigo: { type: String, default: null },
+  motivoDescripcion: { type: String, default: null },
+  anulado: { type: Boolean, default: false },
 }, { timestamps: true });
 
 comprobanteSchema.index({ serie: 1, correlativo: 1, ambiente: 1 }, { unique: true });

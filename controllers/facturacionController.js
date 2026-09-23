@@ -2,7 +2,18 @@ const FacturacionConfig = require("../models/FacturacionConfig");
 const Cliente = require("../models/Cliente");
 const Comprobante = require("../models/Comprobante");
 const { cifrar } = require("../config/cifrado");
-const { emitirComprobante } = require("../lib/emitirComprobante");
+const { emitirComprobante, emitirNotaCredito } = require("../lib/emitirComprobante");
+
+const MOTIVOS_NOTA_CREDITO = {
+  "01": "Anulacion de la operacion",
+  "02": "Anulacion por error en el RUC",
+  "03": "Correccion por error en la descripcion",
+  "04": "Descuento global",
+  "05": "Descuento por item",
+  "06": "Devolucion total",
+  "07": "Devolucion por item",
+  "10": "Otros conceptos",
+};
 
 const obtenerConfigDoc = async () => {
   let config = await FacturacionConfig.findOne();
@@ -161,7 +172,7 @@ const guardarCliente = async (req, res) => {
         contacto: contacto || "",
         referencia: referencia || "",
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: "after" }
     );
     res.json(cliente);
   } catch (error) {
@@ -189,6 +200,27 @@ const emitir = async (req, res) => {
   }
 };
 
+const emitirNota = async (req, res) => {
+  try {
+    const { comprobanteId, motivoCodigo } = req.body;
+    if (!comprobanteId) {
+      return res.status(400).json({ mensaje: "Falta el comprobante a anular" });
+    }
+    if (!motivoCodigo || !MOTIVOS_NOTA_CREDITO[motivoCodigo]) {
+      return res.status(400).json({ mensaje: "Motivo de la nota de credito invalido" });
+    }
+
+    const notaCredito = await emitirNotaCredito({
+      comprobanteAfectadoId: comprobanteId,
+      motivoCodigo,
+      motivoDescripcion: MOTIVOS_NOTA_CREDITO[motivoCodigo],
+    });
+    res.json(notaCredito);
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al emitir la nota de credito", error: error.message });
+  }
+};
+
 const listarComprobantes = async (req, res) => {
   try {
     const comprobantes = await Comprobante.find().sort({ createdAt: -1 }).limit(200);
@@ -206,5 +238,6 @@ module.exports = {
   buscarDocumento,
   guardarCliente,
   emitir,
+  emitirNota,
   listarComprobantes,
 };

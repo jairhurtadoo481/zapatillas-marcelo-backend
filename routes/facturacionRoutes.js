@@ -11,6 +11,7 @@ const {
   buscarDocumento,
   guardarCliente,
   emitir,
+  emitirNota,
   listarComprobantes,
 } = require("../controllers/facturacionController");
 
@@ -21,6 +22,7 @@ router.post("/configuracion/certificado", protegerRuta, soloAdmin, uploadCert.si
 router.get("/documento/:tipo/:numero", protegerRuta, soloAdmin, buscarDocumento);
 router.put("/clientes/:documento", protegerRuta, soloAdmin, guardarCliente);
 router.post("/emitir", protegerRuta, soloAdmin, emitir);
+router.post("/notas-credito", protegerRuta, soloAdmin, emitirNota);
 router.get("/comprobantes", protegerRuta, soloAdmin, listarComprobantes);
 
 module.exports = router;
