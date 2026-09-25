@@ -1,8 +1,13 @@
 const FacturacionConfig = require("../models/FacturacionConfig");
 const Cliente = require("../models/Cliente");
 const Comprobante = require("../models/Comprobante");
+const bcrypt = require("bcryptjs");
 const { cifrar } = require("../config/cifrado");
 const { emitirComprobante, emitirNotaCredito } = require("../lib/emitirComprobante");
+const { generarTokenFacturacion } = require("../middleware/facturacionMiddleware");
+
+const MAX_INTENTOS_CODIGO = 5;
+const MINUTOS_BLOQUEO_CODIGO = 15;
 
 const MOTIVOS_NOTA_CREDITO = {
   "01": "Anulacion de la operacion",
@@ -22,6 +27,46 @@ const obtenerConfigDoc = async () => {
     await config.save();
   }
   return config;
+};
+
+const desbloquear = async (req, res) => {
+  try {
+    const { codigo } = req.body;
+    if (!codigo) {
+      return res.status(400).json({ mensaje: "Falta el codigo de acceso" });
+    }
+
+    const config = await obtenerConfigDoc();
+    if (!config.claveAccesoHash) {
+      return res.status(403).json({ mensaje: "El codigo de acceso a facturacion no esta configurado" });
+    }
+
+    const ahora = new Date();
+    if (config.bloqueadoHasta && config.bloqueadoHasta > ahora) {
+      const minutos = Math.ceil((config.bloqueadoHasta - ahora) / 60000);
+      return res.status(429).json({ mensaje: `Demasiados intentos. Intenta de nuevo en ${minutos} minuto(s).` });
+    }
+
+    const correcto = await bcrypt.compare(String(codigo), config.claveAccesoHash);
+    if (!correcto) {
+      config.intentosFallidos += 1;
+      if (config.intentosFallidos >= MAX_INTENTOS_CODIGO) {
+        config.bloqueadoHasta = new Date(Date.now() + MINUTOS_BLOQUEO_CODIGO * 60000);
+        config.intentosFallidos = 0;
+      }
+      await config.save();
+      return res.status(401).json({ mensaje: "Codigo incorrecto" });
+    }
+
+    if (config.intentosFallidos !== 0 || config.bloqueadoHasta) {
+      config.intentosFallidos = 0;
+      config.bloqueadoHasta = null;
+      await config.save();
+    }
+    res.json({ token: generarTokenFacturacion(req.usuarioId) });
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al validar el codigo de acceso", error: error.message });
+  }
 };
 
 const obtenerConfiguracion = async (req, res) => {
@@ -45,7 +90,10 @@ const obtenerConfiguracion = async (req, res) => {
 
 const guardarDatosEmpresa = async (req, res) => {
   try {
-    const { ruc, razonSocial, nombreComercial, direccion, ambiente, serieBoleta, serieFactura } = req.body;
+    const {
+      ruc, razonSocial, nombreComercial, direccion, ambiente,
+      serieBoleta, serieFactura, serieNotaCreditoBoleta, serieNotaCreditoFactura,
+    } = req.body;
     const config = await obtenerConfigDoc();
     if (ruc !== undefined) config.ruc = ruc;
     if (razonSocial !== undefined) config.razonSocial = razonSocial;
@@ -59,6 +107,14 @@ const guardarDatosEmpresa = async (req, res) => {
     if (serieFactura !== undefined && serieFactura !== config.series.factura) {
       config.series.factura = serieFactura;
       config.correlativos.factura = 0;
+    }
+    if (serieNotaCreditoBoleta !== undefined && serieNotaCreditoBoleta !== config.series.notaCreditoBoleta) {
+      config.series.notaCreditoBoleta = serieNotaCreditoBoleta;
+      config.correlativos.notaCreditoBoleta = 0;
+    }
+    if (serieNotaCreditoFactura !== undefined && serieNotaCreditoFactura !== config.series.notaCreditoFactura) {
+      config.series.notaCreditoFactura = serieNotaCreditoFactura;
+      config.correlativos.notaCreditoFactura = 0;
     }
     await config.save();
     res.json({ mensaje: "Datos de la empresa guardados" });
@@ -223,14 +279,20 @@ const emitirNota = async (req, res) => {
 
 const listarComprobantes = async (req, res) => {
   try {
-    const comprobantes = await Comprobante.find().sort({ createdAt: -1 }).limit(200);
-    res.json(comprobantes);
+    const comprobantes = await Comprobante.find().sort({ createdAt: -1 }).limit(200).lean();
+
+    const documentos = [...new Set(comprobantes.map((c) => c.cliente.documento))];
+    const clientes = await Cliente.find({ documento: { $in: documentos } }).select("documento telefono").lean();
+    const telefonoPorDocumento = new Map(clientes.map((c) => [c.documento, c.telefono || ""]));
+
+    res.json(comprobantes.map((c) => ({ ...c, clienteTelefono: telefonoPorDocumento.get(c.cliente.documento) || "" })));
   } catch (error) {
     res.status(500).json({ mensaje: "Error al listar comprobantes", error: error.message });
   }
 };
 
 module.exports = {
+  desbloquear,
   obtenerConfiguracion,
   guardarDatosEmpresa,
   guardarCredencialesSol,

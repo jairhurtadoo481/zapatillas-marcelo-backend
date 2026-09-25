@@ -12,6 +12,7 @@ const usuarioSchema = new mongoose.Schema({
     default: "admin",
   },
   activo: { type: Boolean, default: true },
+  passwordCambiadaEn: { type: Date, default: null },
 }, { timestamps: true });
 
 usuarioSchema.pre("save", async function () {

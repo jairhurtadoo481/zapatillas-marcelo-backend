@@ -17,7 +17,7 @@ conectarDB();
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ exposedHeaders: ["X-Facturacion-Token"] }));
 app.use(express.json());
 
 app.get("/", (req, res) => {
