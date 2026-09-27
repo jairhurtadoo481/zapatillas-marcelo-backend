@@ -12,10 +12,12 @@ const configuracionRoutes = require("./routes/configuracionRoutes");
 const usuarioRoutes = require("./routes/usuarioRoutes");
 const turnoRoutes = require("./routes/turnoRoutes");
 const facturacionRoutes = require("./routes/facturacionRoutes");
+const reclamoRoutes = require("./routes/reclamoRoutes");
 
 conectarDB();
 
 const app = express();
+app.set("trust proxy", 1);
 
 app.use(cors({ exposedHeaders: ["X-Facturacion-Token"] }));
 app.use(express.json());
@@ -32,6 +34,7 @@ app.use("/api/configuracion", configuracionRoutes);
 app.use("/api/usuarios", usuarioRoutes);
 app.use("/api/turnos", turnoRoutes);
 app.use("/api/facturacion", facturacionRoutes);
+app.use("/api/reclamos", reclamoRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

@@ -2,9 +2,13 @@ const FacturacionConfig = require("../models/FacturacionConfig");
 const Cliente = require("../models/Cliente");
 const Comprobante = require("../models/Comprobante");
 const bcrypt = require("bcryptjs");
-const { cifrar } = require("../config/cifrado");
-const { emitirComprobante, emitirNotaCredito } = require("../lib/emitirComprobante");
+const JSZip = require("jszip");
+const { cifrar, descifrar } = require("../config/cifrado");
+const { emitirComprobante, emitirNotaCredito, reenviarComprobante } = require("../lib/emitirComprobante");
 const { generarTokenFacturacion } = require("../middleware/facturacionMiddleware");
+const { leerCertificadoP12 } = require("../lib/certificado");
+const { calcularTotales } = require("../lib/calculosComprobante");
+const { validarClienteParaEmision } = require("../lib/validacionesFacturacion");
 
 const MAX_INTENTOS_CODIGO = 5;
 const MINUTOS_BLOQUEO_CODIGO = 15;
@@ -69,6 +73,19 @@ const desbloquear = async (req, res) => {
   }
 };
 
+const obtenerInfoCertificado = (config) => {
+  if (!config.certificadoCifrado || !config.claveCertificadoCifrada) return null;
+  try {
+    const buffer = descifrar(config.certificadoCifrado);
+    const clave = descifrar(config.claveCertificadoCifrada).toString("utf8");
+    const { validoHasta } = leerCertificadoP12(buffer, clave);
+    const diasRestantes = Math.ceil((new Date(validoHasta).getTime() - Date.now()) / 86400000);
+    return { vigenteHasta: validoHasta, diasRestantes };
+  } catch (error) {
+    return { error: "No se pudo leer la fecha de vencimiento del certificado" };
+  }
+};
+
 const obtenerConfiguracion = async (req, res) => {
   try {
     const config = await obtenerConfigDoc();
@@ -82,6 +99,7 @@ const obtenerConfiguracion = async (req, res) => {
       correlativos: config.correlativos,
       tieneCertificado: Boolean(config.certificadoCifrado),
       tieneCredencialesSol: Boolean(config.usuarioSolCifrado && config.claveSolCifrada),
+      certificado: obtenerInfoCertificado(config),
     });
   } catch (error) {
     res.status(500).json({ mensaje: "Error al obtener configuracion de facturacion", error: error.message });
@@ -249,10 +267,25 @@ const emitir = async (req, res) => {
       return res.status(400).json({ mensaje: "El comprobante debe tener al menos un item" });
     }
 
+    const { total } = calcularTotales(items);
+    const errorCliente = validarClienteParaEmision({ tipo, cliente, total });
+    if (errorCliente) {
+      return res.status(400).json({ mensaje: errorCliente });
+    }
+
     const comprobante = await emitirComprobante({ tipo, cliente, items });
     res.json(comprobante);
   } catch (error) {
     res.status(500).json({ mensaje: "Error al emitir el comprobante", error: error.message });
+  }
+};
+
+const reenviar = async (req, res) => {
+  try {
+    const comprobante = await reenviarComprobante(req.params.id);
+    res.json(comprobante);
+  } catch (error) {
+    res.status(400).json({ mensaje: error.message });
   }
 };
 
@@ -291,6 +324,138 @@ const listarComprobantes = async (req, res) => {
   }
 };
 
+const rangoDelMes = (query) => {
+  const anio = Number(query.anio);
+  const mes = Number(query.mes);
+  if (!anio || !mes || mes < 1 || mes > 12) return null;
+  return { anio, mes, desde: new Date(anio, mes - 1, 1), hasta: new Date(anio, mes, 1) };
+};
+
+const escaparCsv = (valor) => {
+  const texto = String(valor ?? "");
+  return /[",\n;]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+};
+
+const ENCABEZADO_REPORTE = ["Fecha", "Tipo", "Serie", "Correlativo", "Cliente", "Documento", "Moneda", "Base Imponible", "IGV", "Total", "Estado", "Ambiente"];
+
+const obtenerFilasReporte = async (rango) => {
+  const comprobantes = await Comprobante.find({ createdAt: { $gte: rango.desde, $lt: rango.hasta } })
+    .sort({ createdAt: 1 })
+    .lean();
+
+  const filas = comprobantes.map((c) => [
+    new Date(c.createdAt).toLocaleString("es-PE"),
+    c.tipo,
+    c.serie,
+    c.correlativo,
+    c.cliente.nombre,
+    c.cliente.documento,
+    c.moneda,
+    c.subtotal.toFixed(2),
+    c.igv.toFixed(2),
+    c.total.toFixed(2),
+    c.anulado ? "ANULADO" : c.estado.toUpperCase(),
+    c.ambiente,
+  ]);
+
+  return { encabezado: ENCABEZADO_REPORTE, filas };
+};
+
+const generarReporteCsv = async (req, res) => {
+  try {
+    const rango = rangoDelMes(req.query);
+    if (!rango) {
+      return res.status(400).json({ mensaje: "Indica un anio y un mes validos" });
+    }
+    const { encabezado, filas } = await obtenerFilasReporte(rango);
+    const csv = [encabezado, ...filas].map((fila) => fila.map(escaparCsv).join(",")).join("\r\n");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="reporte-${rango.anio}-${String(rango.mes).padStart(2, "0")}.csv"`);
+    res.send("﻿" + csv);
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al generar el reporte", error: error.message });
+  }
+};
+
+const enviarReporteGoogleSheets = async (req, res) => {
+  try {
+    const rango = rangoDelMes(req.query);
+    if (!rango) {
+      return res.status(400).json({ mensaje: "Indica un anio y un mes validos" });
+    }
+
+    const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+    const secreto = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET;
+    if (!webhookUrl || !secreto) {
+      return res.status(400).json({
+        mensaje: "No se ha configurado la conexion con Google Sheets (falta la URL o la clave en el servidor)",
+      });
+    }
+
+    const { encabezado, filas } = await obtenerFilasReporte(rango);
+
+    const respuesta = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clave: secreto, anio: rango.anio, mes: rango.mes, encabezado, filas }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await respuesta.json().catch(() => ({}));
+
+    if (!respuesta.ok || data.ok !== true) {
+      return res.status(502).json({ mensaje: data.mensaje || "Google Sheets no acepto los datos enviados" });
+    }
+    res.json({ mensaje: `Se enviaron ${filas.length} comprobantes a Google Sheets`, filas: filas.length });
+  } catch (error) {
+    const detalle = error.name === "TimeoutError" ? "Google Sheets no respondio a tiempo" : error.message;
+    res.status(500).json({ mensaje: "Error al enviar el reporte a Google Sheets", error: detalle });
+  }
+};
+
+const generarReporteZip = async (req, res) => {
+  try {
+    const rango = rangoDelMes(req.query);
+    if (!rango) {
+      return res.status(400).json({ mensaje: "Indica un anio y un mes validos" });
+    }
+    const comprobantes = await Comprobante.find({ createdAt: { $gte: rango.desde, $lt: rango.hasta } })
+      .sort({ createdAt: 1 })
+      .lean();
+    if (comprobantes.length === 0) {
+      return res.status(404).json({ mensaje: "No hay comprobantes en ese mes" });
+    }
+
+    const zip = new JSZip();
+    for (const c of comprobantes) {
+      const nombreBase = `${c.tipo}_${c.serie}-${c.correlativo}`;
+      if (c.xmlUrl) {
+        try {
+          const buffer = await (await fetch(c.xmlUrl)).arrayBuffer();
+          zip.file(`xml/${nombreBase}.xml`, Buffer.from(buffer));
+        } catch (error) {
+          // si un archivo no se pudo descargar, seguimos con los demas
+        }
+      }
+      if (c.cdrUrl) {
+        try {
+          const buffer = await (await fetch(c.cdrUrl)).arrayBuffer();
+          zip.file(`cdr/R-${nombreBase}.zip`, Buffer.from(buffer));
+        } catch (error) {
+          // idem
+        }
+      }
+    }
+
+    const buffer = await zip.generateAsync({ type: "nodebuffer" });
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="comprobantes-${rango.anio}-${String(rango.mes).padStart(2, "0")}.zip"`);
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al generar el archivo zip", error: error.message });
+  }
+};
+
 module.exports = {
   desbloquear,
   obtenerConfiguracion,
@@ -301,5 +466,9 @@ module.exports = {
   guardarCliente,
   emitir,
   emitirNota,
+  reenviar,
   listarComprobantes,
+  generarReporteCsv,
+  generarReporteZip,
+  enviarReporteGoogleSheets,
 };

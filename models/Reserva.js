@@ -33,9 +33,11 @@ const reservaSchema = new mongoose.Schema({
   },
   metodoPago: {
     type: String,
-    enum: ["yape", "plin", null],
+    enum: ["yape", "plin", "bcp", null],
     default: null,
   },
+  aceptoTerminosEn: { type: Date, default: null },
+  versionTerminos: { type: String, default: "" },
   comprobante: { type: String, default: null },
   estado: {
     type: String,

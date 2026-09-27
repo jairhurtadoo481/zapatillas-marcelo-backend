@@ -16,7 +16,7 @@ const obtenerSiguienteNumero = async () => {
 
 const crearReserva = async (req, res) => {
   try {
-    const { items, cliente, metodoPago } = req.body;
+    const { items, cliente, metodoPago, aceptoTerminos, versionTerminos } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ mensaje: "La reserva debe tener al menos un producto" });
@@ -30,8 +30,8 @@ const crearReserva = async (req, res) => {
       return res.status(400).json({ mensaje: "Falta la direccion para la entrega a domicilio" });
     }
 
-    if (!metodoPago || !["yape", "plin"].includes(metodoPago)) {
-      return res.status(400).json({ mensaje: "Debes indicar un metodo de pago valido (yape o plin)" });
+    if (!metodoPago || !["yape", "plin", "bcp"].includes(metodoPago)) {
+      return res.status(400).json({ mensaje: "Debes indicar un metodo de pago valido (yape, plin o bcp)" });
     }
 
     let total = 0;
@@ -82,6 +82,8 @@ const crearReserva = async (req, res) => {
       metodoPago,
       total,
       requierePagoCompleto,
+      aceptoTerminosEn: aceptoTerminos === true ? new Date() : null,
+      versionTerminos: aceptoTerminos === true ? String(versionTerminos || "").slice(0, 40) : "",
     });
 
     await reserva.save();

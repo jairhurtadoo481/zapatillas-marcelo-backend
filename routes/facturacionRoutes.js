@@ -14,7 +14,11 @@ const {
   guardarCliente,
   emitir,
   emitirNota,
+  reenviar,
   listarComprobantes,
+  generarReporteCsv,
+  generarReporteZip,
+  enviarReporteGoogleSheets,
 } = require("../controllers/facturacionController");
 
 const guardia = [protegerRuta, soloAdmin, requiereDesbloqueoFacturacion];
@@ -29,6 +33,10 @@ router.get("/documento/:tipo/:numero", ...guardia, buscarDocumento);
 router.put("/clientes/:documento", ...guardia, guardarCliente);
 router.post("/emitir", ...guardia, emitir);
 router.post("/notas-credito", ...guardia, emitirNota);
+router.post("/comprobantes/:id/reenviar", ...guardia, reenviar);
 router.get("/comprobantes", ...guardia, listarComprobantes);
+router.get("/reporte/csv", ...guardia, generarReporteCsv);
+router.get("/reporte/zip", ...guardia, generarReporteZip);
+router.post("/reporte/google-sheets", ...guardia, enviarReporteGoogleSheets);
 
 module.exports = router;
