@@ -19,6 +19,10 @@ const {
   generarReporteCsv,
   generarReporteZip,
   enviarReporteGoogleSheets,
+  listarFactilizaTokens,
+  agregarFactilizaToken,
+  actualizarFactilizaToken,
+  eliminarFactilizaToken,
 } = require("../controllers/facturacionController");
 
 const guardia = [protegerRuta, soloAdmin, requiereDesbloqueoFacturacion];
@@ -38,5 +42,10 @@ router.get("/comprobantes", ...guardia, listarComprobantes);
 router.get("/reporte/csv", ...guardia, generarReporteCsv);
 router.get("/reporte/zip", ...guardia, generarReporteZip);
 router.post("/reporte/google-sheets", ...guardia, enviarReporteGoogleSheets);
+
+router.get("/factiliza-tokens", ...guardia, listarFactilizaTokens);
+router.post("/factiliza-tokens", ...guardia, agregarFactilizaToken);
+router.put("/factiliza-tokens/:id", ...guardia, actualizarFactilizaToken);
+router.delete("/factiliza-tokens/:id", ...guardia, eliminarFactilizaToken);
 
 module.exports = router;

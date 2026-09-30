@@ -1,6 +1,8 @@
 const FacturacionConfig = require("../models/FacturacionConfig");
 const Cliente = require("../models/Cliente");
 const Comprobante = require("../models/Comprobante");
+const FactilizaToken = require("../models/FactilizaToken");
+const { consultarDocumento, DURACION_CICLO_DIAS } = require("../lib/factiliza");
 const bcrypt = require("bcryptjs");
 const JSZip = require("jszip");
 const { cifrar, descifrar } = require("../config/cifrado");
@@ -203,10 +205,12 @@ const buscarDocumento = async (req, res) => {
       });
     }
 
-    const respuesta = await fetch(`https://api.factiliza.com/v1/${tipo}/info/${numero}`, {
-      headers: { Authorization: `Bearer ${process.env.FACTILIZA_TOKEN}` },
-    });
-    const data = await respuesta.json();
+    let respuesta, data;
+    try {
+      ({ respuesta, data } = await consultarDocumento(tipo, numero));
+    } catch (error) {
+      return res.status(502).json({ mensaje: error.message });
+    }
 
     if (!respuesta.ok || !data.success) {
       return res.status(404).json({ mensaje: "No se encontro el documento" });
@@ -225,6 +229,74 @@ const buscarDocumento = async (req, res) => {
     res.json({ ...resultado, esClienteConocido: false });
   } catch (error) {
     res.status(500).json({ mensaje: "Error al consultar el documento", error: error.message });
+  }
+};
+
+const infoToken = (t) => ({
+  _id: t._id,
+  etiqueta: t.etiqueta,
+  usados: t.usados,
+  limite: t.limite,
+  activo: t.activo,
+  cicloInicio: t.cicloInicio,
+  proximoReinicio: new Date(t.cicloInicio.getTime() + DURACION_CICLO_DIAS * 86400000),
+});
+
+const listarFactilizaTokens = async (req, res) => {
+  try {
+    const tokens = await FactilizaToken.find().sort({ createdAt: 1 });
+    res.json(tokens.map(infoToken));
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al listar las cuentas de Factiliza", error: error.message });
+  }
+};
+
+const agregarFactilizaToken = async (req, res) => {
+  try {
+    const { token, etiqueta, usadosIniciales, limite } = req.body;
+    if (!token || !token.trim()) {
+      return res.status(400).json({ mensaje: "Falta el token de la cuenta" });
+    }
+    const nuevo = await FactilizaToken.create({
+      tokenCifrado: cifrar(token.trim()),
+      etiqueta: (etiqueta || "").trim(),
+      usados: Math.max(0, Number(usadosIniciales) || 0),
+      limite: Number(limite) > 0 ? Number(limite) : 98,
+    });
+    res.json(infoToken(nuevo));
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al agregar la cuenta de Factiliza", error: error.message });
+  }
+};
+
+const actualizarFactilizaToken = async (req, res) => {
+  try {
+    const cambios = {};
+    if (req.body.activo !== undefined) cambios.activo = Boolean(req.body.activo);
+    if (req.body.etiqueta !== undefined) cambios.etiqueta = String(req.body.etiqueta).trim();
+    if (req.body.reiniciarContador) {
+      cambios.usados = 0;
+      cambios.cicloInicio = new Date();
+    }
+    const actualizado = await FactilizaToken.findByIdAndUpdate(req.params.id, cambios, { returnDocument: "after" });
+    if (!actualizado) {
+      return res.status(404).json({ mensaje: "Cuenta no encontrada" });
+    }
+    res.json(infoToken(actualizado));
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al actualizar la cuenta de Factiliza", error: error.message });
+  }
+};
+
+const eliminarFactilizaToken = async (req, res) => {
+  try {
+    const eliminado = await FactilizaToken.findByIdAndDelete(req.params.id);
+    if (!eliminado) {
+      return res.status(404).json({ mensaje: "Cuenta no encontrada" });
+    }
+    res.json({ mensaje: "Cuenta eliminada" });
+  } catch (error) {
+    res.status(500).json({ mensaje: "Error al eliminar la cuenta de Factiliza", error: error.message });
   }
 };
 
@@ -471,4 +543,8 @@ module.exports = {
   generarReporteCsv,
   generarReporteZip,
   enviarReporteGoogleSheets,
+  listarFactilizaTokens,
+  agregarFactilizaToken,
+  actualizarFactilizaToken,
+  eliminarFactilizaToken,
 };
